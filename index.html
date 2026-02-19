@@ -1,115 +1,281 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juan Manuel Sanchez Piñon | Presentación</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard CFE Pro</title>
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<style>
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #1f1c2c, #928DAB);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+:root{
+    --bg:#f1f5f9;
+    --card:#ffffff;
+    --primary:#0f172a;
+    --accent:#7f4a9d;
+    --soft:#e2e8f0;
+}
 
-        .card {
-            background: white;
-            width: 400px;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-            text-align: center;
-            animation: fadeIn 1.5s ease;
-        }
+body{
+    margin:0;
+    font-family:'Segoe UI',sans-serif;
+    background:var(--bg);
+    color:var(--primary);
+}
 
-        .card h1 {
-            font-size: 22px;
-            margin-bottom: 20px;
-            color: #333;
-        }
+header{
+    text-align:center;
+    padding:40px 20px;
+    animation:fadeIn 1s ease;
+}
 
-        .info {
-            margin: 15px 0;
-            padding: 12px;
-            background: #f3f3f3;
-            border-radius: 10px;
-            font-size: 14px;
-            color: #555;
-        }
+h1{
+    margin:0;
+    font-weight:600;
+    letter-spacing:1px;
+}
 
-        .label {
-            font-weight: 600;
-            color: #222;
-        }
+.sub{
+    opacity:0.6;
+    font-size:14px;
+}
 
-        .email-link {
-            text-decoration: none;
-            color: #5a4fcf;
-            font-weight: 600;
-        }
+.container{
+    max-width:1000px;
+    margin:auto;
+    padding:20px;
+}
 
-        .email-link:hover {
-            text-decoration: underline;
-        }
+.card{
+    background:var(--card);
+    padding:25px;
+    border-radius:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.05);
+    margin-bottom:25px;
+    animation:slideUp 0.8s ease;
+}
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+button{
+    background:var(--accent);
+    border:none;
+    padding:10px 20px;
+    border-radius:8px;
+    color:white;
+    cursor:pointer;
+    transition:0.3s;
+}
 
-        footer {
-            position: absolute;
-            bottom: 15px;
-            color: white;
-            font-size: 12px;
-            opacity: 0.8;
-        }
-    </style>
+button:hover{
+    transform:translateY(-2px);
+    opacity:0.9;
+}
+
+input{
+    padding:8px;
+    border-radius:6px;
+    border:1px solid var(--soft);
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th,td{
+    padding:10px;
+    border-bottom:1px solid var(--soft);
+    text-align:center;
+}
+
+th{
+    font-weight:600;
+    background:#f8fafc;
+}
+
+canvas{
+    margin-top:20px;
+}
+
+@keyframes fadeIn{
+    from{opacity:0}
+    to{opacity:1}
+}
+
+@keyframes slideUp{
+    from{opacity:0;transform:translateY(20px)}
+    to{opacity:1;transform:translateY(0)}
+}
+
+</style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>Información de Presentación</h1>
+<header>
+    <h1>Analizador Inteligente CFE</h1>
+    <div class="sub">Juan Manuel Sanchez Piñon | 2337481B</div>
+</header>
 
-        <div class="info">
-            <span class="label">Nombre:</span><br>
-            Juan Manuel Sanchez Piñon
-        </div>
+<div class="container">
 
-        <div class="info">
-            <span class="label">Matrícula:</span><br>
-            2337481B
-        </div>
+<div class="card">
+    <input type="file" id="pdfFile" accept="application/pdf">
+    <button onclick="leerPDF()">Analizar Recibo</button>
+</div>
 
-        <div class="info">
-            <span class="label">Correo:</span><br>
-            <a href="mailto:2337481b@umich.mx" class="email-link">
-                2337481b@umich.mx
-            </a>
-        </div>
-    </div>
+<div id="datos" class="card" style="display:none;"></div>
+<div id="historial" class="card" style="display:none;"></div>
 
-    <footer>
-        © 2026 | Página creada con HTML & CSS
-    </footer>
+<canvas id="grafica"></canvas>
+
+</div>
+
+<script>
+
+let chart;
+
+async function leerPDF(){
+
+    const file = document.getElementById("pdfFile").files[0];
+    if(!file){ alert("Sube un PDF"); return; }
+
+    const reader = new FileReader();
+
+    reader.onload = async function(){
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+
+        let texto="";
+
+        for(let i=1;i<=pdf.numPages;i++){
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            texto += content.items.map(i=>i.str).join(" ") + "\n";
+        }
+
+        procesar(texto);
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+function procesar(texto){
+
+    // ===== DETECCIÓN PRECISA DEL NOMBRE =====
+    let nombre = "No detectado";
+
+    const bloque = texto.match(/Comisión Federal de Electricidad([\s\S]*?)NO\.\s*DE\s*SERVICIO/i);
+
+    if(bloque){
+        const posibles = bloque[1]
+            .split(/ {2,}/)
+            .map(l => l.trim())
+            .filter(l =>
+                /^[A-ZÁÉÍÓÚÑ\s]+$/.test(l) &&
+                l.length > 5 &&
+                !l.includes("HUATZANGUIO") &&
+                !l.includes("C.P.")
+            );
+
+        if(posibles.length > 0){
+            nombre = posibles[0];
+        }
+    }
+
+    const servicioMatch = texto.match(/NO\.\s*DE\s*SERVICIO:?\s*(\d+)/i);
+    const periodoMatch = texto.match(/PERIODO FACTURADO:?\s*([A-Z0-9\s\-]+)/i);
+
+    // ===== TOTAL FINAL EXACTO =====
+    let total = "No detectado";
+    const totalMatch = texto.match(/Total\s+([\d,]+\.\d{2})/i);
+    if(totalMatch){
+        total = totalMatch[1];
+    }
+
+    document.getElementById("datos").style.display="block";
+    document.getElementById("datos").innerHTML=`
+        <h3>Datos Generales</h3>
+        <table>
+            <tr><th>Campo</th><th>Valor</th></tr>
+            <tr><td>Nombre</td><td>${nombre}</td></tr>
+            <tr><td>No. Servicio</td><td>${servicioMatch?servicioMatch[1]:"No detectado"}</td></tr>
+            <tr><td>Periodo</td><td>${periodoMatch?periodoMatch[1]:"No detectado"}</td></tr>
+            <tr><td>Total a Pagar</td><td>$${total}</td></tr>
+        </table>
+    `;
+
+    extraerHistorial(texto);
+}
+
+function extraerHistorial(texto){
+
+    // ===== HISTÓRICO EXACTO DEL FORMATO CFE =====
+    const regex = /del\s+([0-9A-Z\s]+?\d{2})\s+(\d+)\s+\$([\d,]+\.\d{2})/gi;
+
+    let match;
+    let datos=[];
+
+    while((match = regex.exec(texto)) !== null){
+
+        let pagoLimpio = match[3].replace(/,/g,"");
+
+        datos.push({
+            periodo:match[1].trim(),
+            consumo:parseInt(match[2]),
+            pago:parseFloat(pagoLimpio)
+        });
+    }
+
+    document.getElementById("historial").style.display="block";
+
+    let tabla=`<h3>Consumo Histórico</h3>
+        <table>
+        <tr><th>Periodo</th><th>kWh</th><th>Pago</th></tr>`;
+
+    datos.forEach(d=>{
+        tabla+=`<tr>
+            <td>${d.periodo}</td>
+            <td>${d.consumo}</td>
+            <td>$${d.pago.toLocaleString()}</td>
+        </tr>`;
+    });
+
+    tabla+="</table>";
+
+    document.getElementById("historial").innerHTML=tabla;
+
+    generarGrafica(datos);
+}
+
+function generarGrafica(datos){
+
+    const ctx=document.getElementById("grafica");
+
+    if(chart) chart.destroy();
+
+    chart=new Chart(ctx,{
+        type:"line",
+        data:{
+            labels:datos.map(d=>d.periodo),
+            datasets:[{
+                label:"Consumo kWh",
+                data:datos.map(d=>d.consumo),
+                borderWidth:2,
+                tension:0.4
+            }]
+        },
+        options:{
+            animation:{duration:1500},
+            plugins:{legend:{display:true}}
+        }
+    });
+}
+
+</script>
+
+
 
 </body>
 </html>
