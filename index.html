@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Analizador PRO Recibo CFE</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+body{
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg,#1e3c72,#2a5298);
+    color:white;
+    padding:30px;
+}
+.container{
+    max-width:1000px;
+    margin:auto;
+}
+.card{
+    background:white;
+    color:#333;
+    padding:20px;
+    border-radius:15px;
+    margin:10px 0;
+    box-shadow:0 6px 15px rgba(0,0,0,0.2);
+}
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:8px;
+    background:#00c6ff;
+    cursor:pointer;
+    font-weight:bold;
+}
+button:hover{
+    background:#0072ff;
+    color:white;
+}
+.grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit,minmax(250px,1fr));
+    gap:15px;
+}
+canvas{
+    background:white;
+    border-radius:15px;
+    padding:15px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>⚡ Analizador PRO Recibo CFE</h1>
+
+<input type="file" id="pdfInput" accept="application/pdf">
+<button onclick="leerPDF()">Analizar</button>
+<button onclick="exportarExcel()">Exportar a Excel</button>
+
+<div class="grid" id="cards"></div>
+
+<h2>Historial de Consumo</h2>
+<canvas id="grafica"></canvas>
+
+</div>
+
+<script>
+let historial = JSON.parse(localStorage.getItem("historialCFE")) || [];
+let datosActuales = {};
+
+async function leerPDF(){
+
+    const file = document.getElementById("pdfInput").files[0];
+    if(!file){
+        alert("Selecciona un PDF");
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = async function(){
+
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+
+        let texto = "";
+
+        for(let i=1;i<=pdf.numPages;i++){
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            texto += content.items.map(i=>i.str).join(" ");
+        }
+
+        procesarTexto(texto);
+    }
+
+    reader.readAsArrayBuffer(file);
+}
+
+function extraer(regex){
+    const match = textoGlobal.match(regex);
+    return match ? match[1] : "No encontrado";
+}
+
+let textoGlobal="";
+
+function procesarTexto(texto){
+
+    textoGlobal = texto;
+
+    const datos = {
+        servicio: texto.match(/Servicio\s*No\.\s*(\d+)/i)?.[1] || "N/A",
+        total: texto.match(/Total a pagar\s*\$?\s*([\d,.]+)/i)?.[1] || "0",
+        consumo: texto.match(/([\d,.]+)\s*kWh/i)?.[1] || "0",
+        tarifa: texto.match(/Tarifa\s*(\w+)/i)?.[1] || "N/A",
+        fecha: texto.match(/Fecha límite de pago\s*(.*?)\s/i)?.[1] || "N/A"
+    };
+
+    datosActuales = datos;
+
+    historial.push({
+        fecha: new Date().toLocaleDateString(),
+        consumo: parseFloat(datos.consumo.replace(",",""))
+    });
+
+    localStorage.setItem("historialCFE",JSON.stringify(historial));
+
+    mostrarCards(datos);
+    dibujarGrafica();
+}
+
+function mostrarCards(datos){
+
+    const cont = document.getElementById("cards");
+    cont.innerHTML="";
+
+    for(const key in datos){
+        const div = document.createElement("div");
+        div.className="card";
+        div.innerHTML = `<h3>${key.toUpperCase()}</h3><p>${datos[key]}</p>`;
+        cont.appendChild(div);
+    }
+}
+
+function dibujarGrafica(){
+
+    const ctx = document.getElementById("grafica").getContext("2d");
+
+    new Chart(ctx,{
+        type:'line',
+        data:{
+            labels: historial.map(h=>h.fecha),
+            datasets:[{
+                label:'Consumo kWh',
+                data: historial.map(h=>h.consumo),
+                borderColor:'#0072ff',
+                fill:false
+            }]
+        }
+    });
+}
+
+function exportarExcel(){
+
+    if(!datosActuales.servicio){
+        alert("Primero analiza un recibo");
+        return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet([datosActuales]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Recibo CFE");
+
+    XLSX.writeFile(wb,"recibo_cfe.xlsx");
+}
+</script>
+
+</body>
+</html>
